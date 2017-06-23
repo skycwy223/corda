@@ -343,7 +343,7 @@ class MockNetwork(private val networkSendManuallyPumped: Boolean = false,
             null
         return Pair(
                 createNode(null, -1, nodeFactory, true, firstNodeName, notaryOverride, BigInteger.valueOf(random63BitValue()), ServiceInfo(NetworkMapService.type), notaryServiceInfo),
-                createNode(nodes[0].info.addresses.first(), -1, nodeFactory, true, secondNodeName) // TODO We assume single networkMap address.
+                createNode(nodes[0].network.myAddress, -1, nodeFactory, true, secondNodeName)
         )
     }
 
@@ -366,11 +366,12 @@ class MockNetwork(private val networkSendManuallyPumped: Boolean = false,
         else
             null
         val mapNode = createNode(null, nodeFactory = nodeFactory, advertisedServices = ServiceInfo(NetworkMapService.type))
-        val notaryNode = createNode(mapNode.info.addresses.first(), nodeFactory = nodeFactory, overrideServices = notaryOverride,
+        val mapAddress = mapNode.network.myAddress
+        val notaryNode = createNode(mapAddress, nodeFactory = nodeFactory, overrideServices = notaryOverride,
                 advertisedServices = notaryServiceInfo)
         val nodes = ArrayList<MockNode>()
         repeat(numPartyNodes) {
-            nodes += createPartyNode(mapNode.info.addresses.first())
+            nodes += createPartyNode(mapAddress)
         }
         nodes.forEach { itNode ->
             nodes.map { it.info.legalIdentityAndCert }.forEach(itNode.services.identityService::registerIdentity)
@@ -386,7 +387,6 @@ class MockNetwork(private val networkSendManuallyPumped: Boolean = false,
                 ServiceInfo(NetworkMapService.type), ServiceInfo(ValidatingNotaryService.type, serviceName))
     }
 
-    // TODO extend it so it will take list of single message recipient
     fun createPartyNode(networkMapAddr: SingleMessageRecipient,
                         legalName: X500Name? = null,
                         overrideServices: Map<ServiceInfo, KeyPair>? = null): MockNode {
