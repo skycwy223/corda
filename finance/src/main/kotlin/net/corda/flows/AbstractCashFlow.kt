@@ -3,7 +3,9 @@ package net.corda.flows
 import co.paralleluniverse.fibers.Suspendable
 import net.corda.core.flows.FlowException
 import net.corda.core.flows.FlowLogic
+import net.corda.core.identity.AnonymousParty
 import net.corda.core.identity.Party
+import net.corda.core.identity.PartyAndCertificate
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.utilities.ProgressTracker
 
@@ -18,6 +20,12 @@ abstract class AbstractCashFlow<T>(override val progressTracker: ProgressTracker
         object FINALISING_TX : ProgressTracker.Step("Finalising transaction")
 
         fun tracker() = ProgressTracker(GENERATING_ID, GENERATING_TX, SIGNING_TX, FINALISING_TX)
+    }
+
+    protected fun buildNoChangeIdentities(vararg parties: PartyAndCertificate): Map<Party, AnonymisedIdentity> {
+        return parties
+                .map { Pair(it.party, AnonymisedIdentity(it.certPath, it.certificate, AnonymousParty(it.party.owningKey)) ) }
+                .toMap()
     }
 
     @Suspendable

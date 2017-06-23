@@ -25,16 +25,26 @@ class CashIssueFlow(val amount: Amount<Currency>,
                     val issueRef: OpaqueBytes,
                     val recipient: Party,
                     val notary: Party,
+                    val anonymous: Boolean,
                     progressTracker: ProgressTracker) : AbstractCashFlow<AbstractCashFlow.Result>(progressTracker) {
     constructor(amount: Amount<Currency>,
                 issueRef: OpaqueBytes,
                 recipient: Party,
-                notary: Party) : this(amount, issueRef, recipient, notary, tracker())
+                notary: Party) : this(amount, issueRef, recipient, notary, true, tracker())
+    constructor(amount: Amount<Currency>,
+                issueRef: OpaqueBytes,
+                recipient: Party,
+                notary: Party,
+                anonymous: Boolean) : this(amount, issueRef, recipient, notary, anonymous, tracker())
 
     @Suspendable
     override fun call(): AbstractCashFlow.Result {
         progressTracker.currentStep = GENERATING_ID
-        val txIdentities = subFlow(TxKeyFlow.Requester(recipient))
+        val txIdentities = if (anonymous) {
+            subFlow(TxKeyFlow.Requester(recipient))
+        } else {
+            buildNoChangeIdentities(serviceHub.myInfo.legalIdentityAndCert, serviceHub.identityService.certificateFromParty(recipient)!!)
+        }
         val anonymousRecipient = txIdentities[recipient]!!.identity
         progressTracker.currentStep = GENERATING_TX
         val builder: TransactionBuilder = TransactionType.General.Builder(notary = notary)
