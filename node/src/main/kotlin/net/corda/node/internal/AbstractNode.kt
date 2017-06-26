@@ -304,7 +304,8 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
                         installCordaService(it)
                     } catch (e: NoSuchMethodException) {
                         log.error("${it.name}, as a Corda service, must have a constructor with a single parameter " +
-                                "of type ${PluginServiceHub::class.java.name}")
+                                "of type ${PluginServiceHub::class.java.name}, or a constructor with two parameters:" +
+                                " ${PluginServiceHub::class.java.name}, ${List::class.java.name}")
                     } catch (e: ServiceInstantiationException) {
                         log.error("Corda service ${it.name} failed to instantiate", e.cause)
                     } catch (e: Exception) {
@@ -319,16 +320,26 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
      */
     fun <T : SerializeAsToken> installCordaService(serviceClass: Class<T>): T {
         serviceClass.requireAnnotation<CordaService>()
-        val constructor = serviceClass.getDeclaredConstructor(PluginServiceHub::class.java).apply { isAccessible = true }
         val service = try {
-            constructor.newInstance(services)
-        } catch (e: InvocationTargetException) {
-            throw ServiceInstantiationException(e.cause)
+            tryCreateInstance(serviceClass, PluginServiceHub::class.java to services)
+        } catch (e: NoSuchMethodException) {
+            tryCreateInstance(serviceClass, PluginServiceHub::class.java to services, List::class.java to smm.tokenizableServices)
         }
         cordappServices.putInstance(serviceClass, service)
         smm.tokenizableServices += service
         log.info("Installed ${serviceClass.name} Corda service")
         return service
+    }
+
+    private fun <T> tryCreateInstance(serviceClass: Class<T>, vararg params: Pair<Class<*>, Any>): T {
+        val paramTypes = params.map { it.first}.toTypedArray()
+        val paramValues = params.map { it.second }.toTypedArray()
+        val constructor = serviceClass.getDeclaredConstructor(*paramTypes).apply { isAccessible = true }
+        return try {
+            constructor.newInstance(*paramValues)
+        } catch (e: InvocationTargetException) {
+            throw ServiceInstantiationException(e.cause)
+        }
     }
 
     private inline fun <reified A : Annotation> Class<*>.requireAnnotation(): A {
