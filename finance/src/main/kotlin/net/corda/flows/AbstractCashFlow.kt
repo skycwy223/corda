@@ -23,7 +23,7 @@ abstract class AbstractCashFlow<T>(override val progressTracker: ProgressTracker
     }
 
     protected fun buildNoChangeIdentities(vararg parties: PartyAndCertificate): TxKeyFlow.TxIdentities {
-        return TxKeyFlow.TxIdentities(parties
+        return TxKeyFlow.TxIdentities(parties.toSet()
                 .map { Pair(it.party, AnonymisedIdentity(it.certPath, it.certificate, AnonymousParty(it.party.owningKey))) })
     }
 
