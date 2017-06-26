@@ -7,12 +7,16 @@ import net.corda.core.crypto.generateKeyPair
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.AnonymousParty
 import net.corda.core.identity.Party
+import net.corda.core.node.services.VaultQueryService
 import net.corda.core.node.services.VaultService
-import net.corda.core.node.services.unconsumedStates
+import net.corda.core.node.services.queryBy
 import net.corda.core.serialization.OpaqueBytes
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.WireTransaction
 import net.corda.core.utilities.*
+import net.corda.node.services.database.HibernateConfiguration
+import net.corda.node.services.schema.NodeSchemaService
+import net.corda.node.services.vault.HibernateVaultQueryImpl
 import net.corda.node.services.vault.NodeVaultService
 import net.corda.node.utilities.configureDatabase
 import net.corda.node.utilities.transaction
@@ -57,6 +61,7 @@ class CashTests {
         dataSource = dataSourceAndDatabase.first
         database = dataSourceAndDatabase.second
         database.transaction {
+            val hibernateConfig = HibernateConfiguration(NodeSchemaService())
             services = object : MockServices() {
                 override val keyManagementService: MockKeyManagementService = MockKeyManagementService(identityService, MINI_CORP_KEY, MEGA_CORP_KEY, OUR_KEY)
                 override val vaultService: VaultService = makeVaultService(dataSourceProps)
@@ -68,6 +73,7 @@ class CashTests {
                     // Refactored to use notifyAll() as we have no other unit test for that method with multiple transactions.
                     vaultService.notifyAll(txs.map { it.tx })
                 }
+                override val vaultQueryService : VaultQueryService = HibernateVaultQueryImpl(hibernateConfig, vaultService.updatesPublisher)
             }
 
             services.fillWithSomeTestCash(howMuch = 100.DOLLARS, atLeastThisManyStates = 1, atMostThisManyStates = 1,
@@ -79,7 +85,7 @@ class CashTests {
             services.fillWithSomeTestCash(howMuch = 80.SWISS_FRANCS, atLeastThisManyStates = 1, atMostThisManyStates = 1,
                     issuedBy = MINI_CORP.ref(1), issuerKey = MINI_CORP_KEY, ownedBy = OUR_IDENTITY_1)
 
-            vaultStatesUnconsumed = services.vaultService.unconsumedStates<Cash.State>().toList()
+            vaultStatesUnconsumed = services.vaultQueryService.queryBy<Cash.State>().states
         }
     }
 

@@ -12,10 +12,8 @@ import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.InitiatedBy
 import net.corda.core.flows.InitiatingFlow
 import net.corda.core.identity.Party
-import net.corda.core.identity.PartyAndCertificate
-import net.corda.core.node.PluginServiceHub
 import net.corda.core.node.ServiceHub
-import net.corda.core.node.services.unconsumedStates
+import net.corda.core.node.services.queryBy
 import net.corda.core.serialization.CordaSerializable
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.utilities.unwrap
@@ -41,7 +39,7 @@ private fun gatherOurInputs(serviceHub: ServiceHub,
                             amountRequired: Amount<Issued<Currency>>,
                             notary: Party?): Pair<List<StateAndRef<Cash.State>>, Long> {
     // Collect cash type inputs
-    val cashStates = serviceHub.vaultService.unconsumedStates<Cash.State>()
+    val cashStates = serviceHub.vaultQueryService.queryBy<Cash.State>().states
     // extract our identity for convenience
     val ourIdentity = serviceHub.myInfo.legalIdentity
     // Filter down to our own cash states with right currency and issuer

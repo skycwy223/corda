@@ -8,6 +8,8 @@ import net.corda.core.contracts.TransactionType
 import net.corda.core.contracts.issuedBy
 import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
+import net.corda.core.node.services.queryBy
+import net.corda.core.node.services.vault.QueryCriteria.VaultQueryCriteria
 import net.corda.core.serialization.OpaqueBytes
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
@@ -46,12 +48,7 @@ class CashExitFlow(val amount: Amount<Currency>, val issueRef: OpaqueBytes, prog
         }
 
         // Work out who the owners of the burnt states were
-        val inputStatesNullable = serviceHub.vaultService.statesForRefs(builder.inputStates())
-        val inputStates = inputStatesNullable.values.filterNotNull().map { it.data }
-        if (inputStatesNullable.size != inputStates.size) {
-            val unresolvedStateRefs = inputStatesNullable.filter { it.value == null }.map { it.key }
-            throw IllegalStateException("Failed to resolve input StateRefs: $unresolvedStateRefs")
-        }
+        val inputStates = serviceHub.vaultQueryService.queryBy<Cash.State>(VaultQueryCriteria(stateRefs = builder.inputStates())).states
 
         // TODO: Is it safe to drop participants we don't know how to contact? Does not knowing how to contact them
         //       count as a reason to fail?

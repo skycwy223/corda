@@ -10,7 +10,7 @@ import net.corda.core.flows.SchedulableFlow
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.Party
 import net.corda.core.node.services.ServiceInfo
-import net.corda.core.node.services.linearHeadsOfType
+import net.corda.core.node.services.queryBy
 import net.corda.core.utilities.DUMMY_NOTARY
 import net.corda.flows.FinalityFlow
 import net.corda.node.services.network.NetworkMapService
@@ -118,10 +118,10 @@ class ScheduledFlowTests {
         nodeA.services.startFlow(InsertInitialStateFlow(nodeB.info.legalIdentity))
         mockNet.waitQuiescent()
         val stateFromA = nodeA.database.transaction {
-            nodeA.services.vaultService.linearHeadsOfType<ScheduledState>().values.first()
+            nodeA.services.vaultQueryService.queryBy<ScheduledState>().states.first()
         }
         val stateFromB = nodeB.database.transaction {
-            nodeB.services.vaultService.linearHeadsOfType<ScheduledState>().values.first()
+            nodeB.services.vaultQueryService.queryBy<ScheduledState>().states.first()
         }
         assertEquals(1, countScheduledFlows)
         assertEquals(stateFromA, stateFromB, "Must be same copy on both nodes")
@@ -137,13 +137,13 @@ class ScheduledFlowTests {
         }
         mockNet.waitQuiescent()
         val statesFromA = nodeA.database.transaction {
-            nodeA.services.vaultService.linearHeadsOfType<ScheduledState>()
+            nodeA.services.vaultQueryService.queryBy<ScheduledState>().states
         }
         val statesFromB = nodeB.database.transaction {
-            nodeB.services.vaultService.linearHeadsOfType<ScheduledState>()
+            nodeB.services.vaultQueryService.queryBy<ScheduledState>().states
         }
         assertEquals(2 * N, statesFromA.count(), "Expect all states to be present")
         assertEquals(statesFromA, statesFromB, "Expect identical data on both nodes")
-        assertTrue("Expect all states have run the scheduled task", statesFromB.values.all { it.state.data.processed })
+        assertTrue("Expect all states have run the scheduled task", statesFromB.all { it.state.data.processed })
     }
 }
