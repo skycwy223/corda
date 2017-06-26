@@ -39,7 +39,7 @@ open class CashPaymentFlow(
         } else {
             buildNoChangeIdentities(serviceHub.myInfo.legalIdentityAndCert, serviceHub.identityService.certificateFromParty(recipient)!!)
         }
-        val anonymousRecipient = txIdentities[recipient]!!.identity
+        val anonymousRecipient = txIdentities.single { it.first == recipient }.second.identity
         progressTracker.currentStep = GENERATING_TX
         val builder: TransactionBuilder = TransactionType.General.Builder(null as Party?)
         // TODO: Have some way of restricting this to states the caller controls

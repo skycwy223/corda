@@ -45,7 +45,7 @@ class CashIssueFlow(val amount: Amount<Currency>,
         } else {
             buildNoChangeIdentities(serviceHub.myInfo.legalIdentityAndCert, serviceHub.identityService.certificateFromParty(recipient)!!)
         }
-        val anonymousRecipient = txIdentities[recipient]!!.identity
+        val anonymousRecipient = txIdentities.single { it.first == recipient }.second.identity
         progressTracker.currentStep = GENERATING_TX
         val builder: TransactionBuilder = TransactionType.General.Builder(notary = notary)
         val issuer = serviceHub.myInfo.legalIdentity.ref(issueRef)

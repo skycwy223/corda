@@ -38,7 +38,7 @@ object IssuerFlow {
             val stxAndIdentity = sendAndReceive<Pair<SignedTransaction, AnonymisedIdentity>>(issuerBankParty, issueRequest).unwrap { it }
             val (stx, identity) = stxAndIdentity
             // TODO: Include anonymised identities
-            return AbstractCashFlow.Result(stx, mapOf(Pair(issueToParty, identity)))
+            return AbstractCashFlow.Result(stx, listOf(Pair(issueToParty, identity)))
         }
     }
 
@@ -72,7 +72,7 @@ object IssuerFlow {
             // TODO: parse request to determine Asset to issue
             val txn = issueCashTo(issueRequest.amount, issueRequest.issueToParty, issueRequest.issuerPartyRef)
             progressTracker.currentStep = SENDING_CONFIRM
-            send(otherParty, Pair(txn.stx, txn.identities[issueRequest.issueToParty]))
+            send(otherParty, Pair(txn.stx, txn.identities.single { it.first == issueRequest.issueToParty }.second))
             return txn.stx
         }
 

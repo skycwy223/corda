@@ -28,7 +28,7 @@ object TxKeyFlow {
     @StartableByRPC
     @InitiatingFlow
     class Requester(otherSide: Party,
-                    override val progressTracker: ProgressTracker) : AbstractIdentityFlow<Map<Party, AnonymisedIdentity>>(otherSide, false) {
+                    override val progressTracker: ProgressTracker) : AbstractIdentityFlow<List<Pair<Party, AnonymisedIdentity>>>(otherSide, false) {
         constructor(otherSide: Party) : this(otherSide, tracker())
         companion object {
             object AWAITING_KEY : ProgressTracker.Step("Awaiting key")
@@ -37,13 +37,13 @@ object TxKeyFlow {
         }
 
         @Suspendable
-        override fun call(): Map<Party, AnonymisedIdentity> {
+        override fun call(): List<Pair<Party, AnonymisedIdentity>> {
             progressTracker.currentStep = AWAITING_KEY
             val myIdentityFragment = serviceHub.keyManagementService.freshKeyAndCert(serviceHub.myInfo.legalIdentityAndCert, revocationEnabled)
             val myIdentity = AnonymisedIdentity(myIdentityFragment)
             val theirIdentity = receive<AnonymisedIdentity>(otherSide).unwrap { validateIdentity(it) }
             send(otherSide, myIdentity)
-            return mapOf(Pair(otherSide, myIdentity),
+            return listOf(Pair(otherSide, myIdentity),
                     Pair(serviceHub.myInfo.legalIdentity, theirIdentity))
         }
     }
@@ -53,7 +53,7 @@ object TxKeyFlow {
      * counterparty and as the result from the flow.
      */
     @InitiatedBy(Requester::class)
-    class Provider(otherSide: Party) : AbstractIdentityFlow<Map<Party, AnonymisedIdentity>>(otherSide, false) {
+    class Provider(otherSide: Party) : AbstractIdentityFlow<List<Pair<Party, AnonymisedIdentity>>>(otherSide, false) {
         companion object {
             object SENDING_KEY : ProgressTracker.Step("Sending key")
         }
@@ -61,14 +61,14 @@ object TxKeyFlow {
         override val progressTracker: ProgressTracker = ProgressTracker(SENDING_KEY)
 
         @Suspendable
-        override fun call(): Map<Party, AnonymisedIdentity> {
+        override fun call(): List<Pair<Party, AnonymisedIdentity>> {
             val revocationEnabled = false
             progressTracker.currentStep = SENDING_KEY
             val myIdentityFragment = serviceHub.keyManagementService.freshKeyAndCert(serviceHub.myInfo.legalIdentityAndCert, revocationEnabled)
             val myIdentity = AnonymisedIdentity(myIdentityFragment)
             send(otherSide, myIdentity)
             val theirIdentity = receive<AnonymisedIdentity>(otherSide).unwrap { validateIdentity(it) }
-            return mapOf(Pair(otherSide, myIdentity),
+            return listOf(Pair(otherSide, myIdentity),
                     Pair(serviceHub.myInfo.legalIdentity, theirIdentity))
         }
     }
