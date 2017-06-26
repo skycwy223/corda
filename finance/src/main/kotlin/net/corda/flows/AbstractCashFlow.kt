@@ -22,9 +22,9 @@ abstract class AbstractCashFlow<T>(override val progressTracker: ProgressTracker
         fun tracker() = ProgressTracker(GENERATING_ID, GENERATING_TX, SIGNING_TX, FINALISING_TX)
     }
 
-    protected fun buildNoChangeIdentities(vararg parties: PartyAndCertificate): List<Pair<Party, AnonymisedIdentity>> {
-        return parties
-                .map { Pair(it.party, AnonymisedIdentity(it.certPath, it.certificate, AnonymousParty(it.party.owningKey)) ) }
+    protected fun buildNoChangeIdentities(vararg parties: PartyAndCertificate): TxKeyFlow.TxIdentities {
+        return TxKeyFlow.TxIdentities(parties
+                .map { Pair(it.party, AnonymisedIdentity(it.certPath, it.certificate, AnonymousParty(it.party.owningKey))) })
     }
 
     @Suspendable
@@ -43,7 +43,7 @@ abstract class AbstractCashFlow<T>(override val progressTracker: ProgressTracker
      * @param stx the signed transaction.
      * @param identities a mapping from the original identities of the parties to the anonymised equivalents.
      */
-    data class Result(val stx: SignedTransaction, val identities: List<Pair<Party, AnonymisedIdentity>>)
+    data class Result(val stx: SignedTransaction, val identities: TxKeyFlow.TxIdentities)
 }
 
 class CashException(message: String, cause: Throwable) : FlowException(message, cause)

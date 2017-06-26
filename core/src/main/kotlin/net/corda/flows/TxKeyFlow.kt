@@ -28,7 +28,7 @@ object TxKeyFlow {
     @StartableByRPC
     @InitiatingFlow
     class Requester(otherSide: Party,
-                    override val progressTracker: ProgressTracker) : AbstractIdentityFlow<List<Pair<Party, AnonymisedIdentity>>>(otherSide, false) {
+                    override val progressTracker: ProgressTracker) : AbstractIdentityFlow<TxIdentities>(otherSide, false) {
         constructor(otherSide: Party) : this(otherSide, tracker())
         companion object {
             object AWAITING_KEY : ProgressTracker.Step("Awaiting key")
@@ -37,14 +37,20 @@ object TxKeyFlow {
         }
 
         @Suspendable
-        override fun call(): List<Pair<Party, AnonymisedIdentity>> {
+        override fun call(): TxIdentities {
             progressTracker.currentStep = AWAITING_KEY
             val myIdentityFragment = serviceHub.keyManagementService.freshKeyAndCert(serviceHub.myInfo.legalIdentityAndCert, revocationEnabled)
             val myIdentity = AnonymisedIdentity(myIdentityFragment)
-            val theirIdentity = receive<AnonymisedIdentity>(otherSide).unwrap { validateIdentity(it) }
-            send(otherSide, myIdentity)
-            return listOf(Pair(otherSide, myIdentity),
-                    Pair(serviceHub.myInfo.legalIdentity, theirIdentity))
+
+            // Special case that if we're both parties, a single identity is generated
+            return if (otherSide == serviceHub.myInfo.legalIdentity) {
+                TxIdentities(Pair(otherSide, myIdentity))
+            } else {
+                val theirIdentity = receive<AnonymisedIdentity>(otherSide).unwrap { validateIdentity(it) }
+                send(otherSide, myIdentity)
+                TxIdentities(Pair(otherSide, myIdentity),
+                        Pair(serviceHub.myInfo.legalIdentity, theirIdentity))
+            }
         }
     }
 
@@ -53,7 +59,7 @@ object TxKeyFlow {
      * counterparty and as the result from the flow.
      */
     @InitiatedBy(Requester::class)
-    class Provider(otherSide: Party) : AbstractIdentityFlow<List<Pair<Party, AnonymisedIdentity>>>(otherSide, false) {
+    class Provider(otherSide: Party) : AbstractIdentityFlow<TxIdentities>(otherSide, false) {
         companion object {
             object SENDING_KEY : ProgressTracker.Step("Sending key")
         }
@@ -61,15 +67,24 @@ object TxKeyFlow {
         override val progressTracker: ProgressTracker = ProgressTracker(SENDING_KEY)
 
         @Suspendable
-        override fun call(): List<Pair<Party, AnonymisedIdentity>> {
+        override fun call(): TxIdentities {
             val revocationEnabled = false
             progressTracker.currentStep = SENDING_KEY
             val myIdentityFragment = serviceHub.keyManagementService.freshKeyAndCert(serviceHub.myInfo.legalIdentityAndCert, revocationEnabled)
             val myIdentity = AnonymisedIdentity(myIdentityFragment)
             send(otherSide, myIdentity)
             val theirIdentity = receive<AnonymisedIdentity>(otherSide).unwrap { validateIdentity(it) }
-            return listOf(Pair(otherSide, myIdentity),
+            return TxIdentities(Pair(otherSide, myIdentity),
                     Pair(serviceHub.myInfo.legalIdentity, theirIdentity))
         }
+    }
+
+    data class TxIdentities(val identities: List<Pair<Party, AnonymisedIdentity>>) {
+        constructor(vararg identities: Pair<Party, AnonymisedIdentity>) : this(identities.toList())
+        init {
+            require(identities.size == identities.map { it.first }.toSet().size) { "Identities must be unique: ${identities.map { it.first }}" }
+        }
+        fun forParty(party: Party): AnonymisedIdentity = identities.single { it.first == party }.second
+        fun toMap(): Map<Party, AnonymisedIdentity> = this.identities.toMap()
     }
 }
