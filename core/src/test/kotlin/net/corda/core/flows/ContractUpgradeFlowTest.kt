@@ -16,7 +16,6 @@ import net.corda.core.utilities.Emoji
 import net.corda.flows.CashIssueFlow
 import net.corda.flows.ContractUpgradeFlow
 import net.corda.flows.FinalityFlow
-import net.corda.flows.SimplifiedCashIssueFlow
 import net.corda.node.internal.CordaRPCOpsImpl
 import net.corda.node.services.startFlowPermission
 import net.corda.node.utilities.transaction
@@ -174,9 +173,10 @@ class ContractUpgradeFlowTest {
     @Test
     fun `upgrade Cash to v2`() {
         // Create some cash.
-        val result = a.services.startFlow(SimplifiedCashIssueFlow(Amount(1000, USD), OpaqueBytes.of(1), a.info.legalIdentity, notary)).resultFuture
+        val anonymous = false
+        val result = a.services.startFlow(CashIssueFlow(Amount(1000, USD), OpaqueBytes.of(1), a.info.legalIdentity, notary, anonymous)).resultFuture
         mockNet.runNetwork()
-        val stx = result.getOrThrow()
+        val stx = result.getOrThrow().stx
         val stateAndRef = stx.tx.outRef<Cash.State>(0)
         val baseState = a.database.transaction { a.vault.unconsumedStates<ContractState>().single() }
         assertTrue(baseState.state.data is Cash.State, "Contract state is old version.")
