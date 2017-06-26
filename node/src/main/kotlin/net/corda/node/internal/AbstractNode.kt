@@ -29,7 +29,6 @@ import net.corda.core.utilities.getTestPartyAndCertificate
 import net.corda.flows.*
 import net.corda.node.services.*
 import net.corda.node.services.api.*
-import net.corda.node.services.config.FullNodeConfiguration
 import net.corda.node.services.config.NodeConfiguration
 import net.corda.node.services.config.configureWithDevSSLCertificate
 import net.corda.node.services.database.HibernateConfiguration
@@ -132,7 +131,9 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         override val myInfo: NodeInfo get() = info
         override val schemaService: SchemaService get() = schemas
         override val transactionVerifierService: TransactionVerifierService get() = txVerifierService
-        override val auditService: AuditService get() = auditService
+        override val auditService: AuditService get() = this@AbstractNode.auditService
+        override val database: Database get() = this@AbstractNode.database
+        override val configuration: NodeConfiguration get() = this@AbstractNode.configuration
 
         override fun <T : SerializeAsToken> cordaService(type: Class<T>): T {
             require(type.isAnnotationPresent(CordaService::class.java)) { "${type.name} is not a Corda service" }
@@ -677,33 +678,28 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     }
 
     open protected fun makeNotaryService(type: ServiceType, tokenizableServices: MutableList<Any>) {
-        val timeWindowChecker = TimeWindowChecker(platformClock, 30.seconds)
-        val uniquenessProvider = makeUniquenessProvider(type)
-        tokenizableServices.add(uniquenessProvider)
+        val factory = getNotaryFactory(type) ?: return
 
-        val notaryService = when (type) {
-            SimpleNotaryService.type -> SimpleNotaryService(timeWindowChecker, uniquenessProvider)
-            ValidatingNotaryService.type -> ValidatingNotaryService(timeWindowChecker, uniquenessProvider)
-            RaftNonValidatingNotaryService.type -> RaftNonValidatingNotaryService(timeWindowChecker, uniquenessProvider as RaftUniquenessProvider)
-            RaftValidatingNotaryService.type -> RaftValidatingNotaryService(timeWindowChecker, uniquenessProvider as RaftUniquenessProvider)
-            BFTNonValidatingNotaryService.type -> with(configuration as FullNodeConfiguration) {
-                val replicaId = bftReplicaId ?: throw IllegalArgumentException("bftReplicaId value must be specified in the configuration")
-                BFTSMaRtConfig(notaryClusterAddresses).use { config ->
-                    BFTNonValidatingNotaryService(config, services, timeWindowChecker, replicaId, database).also {
-                        tokenizableServices += it.client
-                        runOnStop += it::dispose
-                    }
-                }
-            }
-            else -> {
-                throw IllegalArgumentException("Notary type ${type.id} is not handled by makeNotaryService.")
-            }
+        val notaryService = factory.create(services, tokenizableServices).apply {
+            start()
+            runOnStop += this::stop
         }
-
         installCoreFlow(NotaryFlow.Client::class, notaryService.serviceFlowFactory)
     }
 
-    protected abstract fun makeUniquenessProvider(type: ServiceType): UniquenessProvider
+    protected open fun getNotaryFactory(type: ServiceType): NotaryService.Factory<*>? {
+        return when (type) {
+            SimpleNotaryService.type -> SimpleNotaryService.Factory
+            ValidatingNotaryService.type -> ValidatingNotaryService.Factory
+            RaftNonValidatingNotaryService.type -> RaftNonValidatingNotaryService.Factory
+            RaftValidatingNotaryService.type -> RaftValidatingNotaryService.Factory
+            BFTNonValidatingNotaryService.type -> BFTNonValidatingNotaryService.Factory
+            else -> {
+                log.warn("Notary type ${type.id} does not match any built-in notary types")
+                return null
+            }
+        }
+    }
 
     protected open fun makeIdentityService(trustRoot: X509Certificate,
                                            clientCa: CertificateAndKeyPair?,

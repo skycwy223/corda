@@ -18,9 +18,8 @@ import java.security.SignatureException
  * indeed valid.
  */
 class ValidatingNotaryFlow(otherSide: Party,
-                           timeWindowChecker: TimeWindowChecker,
-                           uniquenessProvider: UniquenessProvider) :
-        NotaryFlow.Service(otherSide, timeWindowChecker, uniquenessProvider) {
+                           override val timeWindowChecker: TimeWindowChecker,
+                           override val uniquenessProvider: UniquenessProvider) : NotaryFlow.Service(otherSide) {
     /**
      * The received transaction is checked for contract-validity, which requires fully resolving it into a
      * [TransactionForVerification], for which the caller also has to to reveal the whole transaction

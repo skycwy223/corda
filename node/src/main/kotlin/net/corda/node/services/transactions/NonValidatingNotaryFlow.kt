@@ -10,8 +10,8 @@ import net.corda.flows.NotaryFlow
 import net.corda.flows.TransactionParts
 
 class NonValidatingNotaryFlow(otherSide: Party,
-                              timeWindowChecker: TimeWindowChecker,
-                              uniquenessProvider: UniquenessProvider) : NotaryFlow.Service(otherSide, timeWindowChecker, uniquenessProvider) {
+                              override val timeWindowChecker: TimeWindowChecker,
+                              override val uniquenessProvider: UniquenessProvider) : NotaryFlow.Service(otherSide) {
     /**
      * The received transaction is not checked for contract-validity, as that would require fully
      * resolving it into a [TransactionForVerification], for which the caller would have to reveal the whole transaction

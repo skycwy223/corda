@@ -170,4 +170,10 @@ private fun writeMap(map: Map<*, *>, buffer: BufferOutput<out BufferOutput<*>>, 
     }
 }
 
-private fun readMap(buffer: BufferInput<out BufferInput<*>>, serializer: Serializer) = LinkedHashMap<Any, Any>().apply { repeat(buffer.readInt()) { put(serializer.readObject(buffer), serializer.readObject(buffer)) } }
+private fun readMap(buffer: BufferInput<out BufferInput<*>>, serializer: Serializer): LinkedHashMap<Any, Any> {
+    return LinkedHashMap<Any, Any>().apply {
+        repeat(buffer.readInt()) {
+            put(serializer.readObject(buffer), serializer.readObject(buffer))
+        }
+    }
+}

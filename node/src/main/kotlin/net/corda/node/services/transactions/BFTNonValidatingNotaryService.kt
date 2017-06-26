@@ -15,7 +15,7 @@ import net.corda.core.utilities.loggerFor
 import net.corda.core.utilities.unwrap
 import net.corda.flows.NotaryException
 import net.corda.node.services.api.ServiceHubInternal
-import org.jetbrains.exposed.sql.Database
+import net.corda.node.services.config.FullNodeConfiguration
 import kotlin.concurrent.thread
 
 /**
@@ -26,8 +26,7 @@ import kotlin.concurrent.thread
 class BFTNonValidatingNotaryService(config: BFTSMaRtConfig,
                                     services: ServiceHubInternal,
                                     timeWindowChecker: TimeWindowChecker,
-                                    replicaId: Int,
-                                    db: Database) : NotaryService {
+                                    replicaId: Int) : NotaryService() {
     val client = BFTSMaRt.Client(config, replicaId) // (Ab)use replicaId for clientId.
     private val replicaHolder = SettableFuture.create<Replica>()
 
@@ -36,15 +35,25 @@ class BFTNonValidatingNotaryService(config: BFTSMaRtConfig,
         val configHandle = config.handle()
         thread(name = "BFT SMaRt replica $replicaId init", isDaemon = true) {
             configHandle.use {
-                replicaHolder.set(Replica(it, replicaId, db, "bft_smart_notary_committed_states", services, timeWindowChecker))
+                replicaHolder.set(Replica(it, replicaId, "bft_smart_notary_committed_states", services, timeWindowChecker))
                 log.info("BFT SMaRt replica $replicaId is running.")
             }
         }
     }
 
-    fun dispose() {
-        replicaHolder.getOrThrow().dispose()
-        client.dispose()
+    object Factory : NotaryService.Factory<BFTNonValidatingNotaryService> {
+        override fun create(services: ServiceHubInternal, serializationContext: MutableList<Any>): BFTNonValidatingNotaryService {
+            val timeWindowChecker = TimeWindowChecker(services.clock)
+            // TODO: split out BFT notary related configuration from general node config
+            return with(services.configuration as FullNodeConfiguration) {
+                val replicaId = bftReplicaId ?: throw IllegalArgumentException("bftReplicaId value must be specified in the configuration")
+                BFTSMaRtConfig(notaryClusterAddresses).use { config ->
+                    BFTNonValidatingNotaryService(config, services, timeWindowChecker, replicaId).also {
+                        serializationContext += it.client
+                    }
+                }
+            }
+        }
     }
 
     companion object {
@@ -79,10 +88,9 @@ class BFTNonValidatingNotaryService(config: BFTSMaRtConfig,
 
     private class Replica(config: BFTSMaRtConfig,
                           replicaId: Int,
-                          db: Database,
                           tableName: String,
                           services: ServiceHubInternal,
-                          timeWindowChecker: TimeWindowChecker) : BFTSMaRt.Replica(config, replicaId, db, tableName, services, timeWindowChecker) {
+                          timeWindowChecker: TimeWindowChecker) : BFTSMaRt.Replica(config, replicaId, tableName, services, timeWindowChecker) {
 
         override fun executeCommand(command: ByteArray): ByteArray {
             val request = command.deserialize<BFTSMaRt.CommitRequest>()
@@ -107,5 +115,11 @@ class BFTNonValidatingNotaryService(config: BFTSMaRtConfig,
                 BFTSMaRt.ReplicaResponse.Error(e.error)
             }
         }
+
+    }
+
+    override fun stop() {
+        replicaHolder.getOrThrow().dispose()
+        client.dispose()
     }
 }
